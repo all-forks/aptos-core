@@ -20,7 +20,7 @@ use crate::{
     clients::victoria_metrics_api::Client as MetricsClient,
     context::Context,
     index::routes,
-    validator_cache::{ValidatorSetCache, ValidatorSetCacheUpdater},
+    validator_cache::{PeerSetCache, PeerSetCacheUpdater},
 };
 
 mod auth;
@@ -55,8 +55,6 @@ impl AptosTelemetryServiceArgs {
             });
         info!("Using config {:?}", &config);
 
-        let cache = ValidatorSetCache::new(aptos_infallible::RwLock::new(HashMap::new()));
-
         let gcp_bigquery_client = Client::from_service_account_key_file(
             env::var("GOOGLE_APPLICATION_CREDENTIALS")
                 .expect("environment variable GOOGLE_APPLICATION_CREDENTIALS must be set")
@@ -70,14 +68,18 @@ impl AptosTelemetryServiceArgs {
             config.victoria_metrics_token.clone(),
         );
 
+        let validators_cache = PeerSetCache::new(aptos_infallible::RwLock::new(HashMap::new()));
+        let vfns_cache = PeerSetCache::new(aptos_infallible::RwLock::new(HashMap::new()));
+
         let context = Context::new(
             &config,
-            cache.clone(),
+            validators_cache.clone(),
+            vfns_cache.clone(),
             Some(gcp_bigquery_client),
             Some(victoria_metrics_client),
         );
 
-        ValidatorSetCacheUpdater::new(cache, &config).run();
+        PeerSetCacheUpdater::new(validators_cache, vfns_cache, &config).run();
 
         Self::serve(&config, routes(context)).await;
     }

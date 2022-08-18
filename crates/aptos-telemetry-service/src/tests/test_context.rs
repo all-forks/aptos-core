@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use crate::GCPBigQueryConfig;
-use crate::{context::Context, index, validator_cache::ValidatorSetCache, TelemetryServiceConfig};
+use crate::{context::Context, index, validator_cache::PeerSetCache, TelemetryServiceConfig};
 use aptos_config::keys::ConfigKey;
 use aptos_crypto::{x25519, Uniform};
 use aptos_rest_client::aptos_api_types::mime_types;
@@ -34,7 +34,7 @@ pub async fn new_test_context() -> TestContext {
         victoria_metrics_base_url: "".into(),
         victoria_metrics_token: "".into(),
     };
-    let cache = ValidatorSetCache::new(aptos_infallible::RwLock::new(HashMap::new()));
+    let cache = PeerSetCache::new(aptos_infallible::RwLock::new(HashMap::new()));
 
     TestContext::new(Context::new(config, cache, None, None))
 }
