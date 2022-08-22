@@ -198,7 +198,7 @@ impl DbReader for StateStore {
         self.deref().get_state_snapshot_before(next_version)
     }
 
-    /// Get the lastest state value of the given key up to the given version. Only used for testing for now
+    /// Get the latest state value of the given key up to the given version. Only used for testing for now
     /// but should replace the `get_value_with_proof_by_version` call for VM execution if just fetch the
     /// value without proof.
     fn get_state_value_by_version(

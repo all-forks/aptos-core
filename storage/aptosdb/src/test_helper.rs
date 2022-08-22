@@ -8,6 +8,9 @@ use crate::{
 };
 use aptos_types::ledger_info::generate_ledger_info_with_sig;
 
+use aptos_config::config::{
+    EpochEndingStateMerklePrunerConfig, LedgerPrunerConfig, StateMerklePrunerConfig,
+};
 use aptos_crypto::hash::{CryptoHash, EventAccumulatorHasher, TransactionAccumulatorHasher};
 use aptos_jellyfish_merkle::node_type::{Node, NodeKey};
 use aptos_temppath::TempPath;
@@ -394,6 +397,89 @@ pub fn test_save_blocks_impl(
             .flat_map(|(txns_to_commit, _)| txns_to_commit.iter())
             .collect(),
     );
+}
+
+pub fn test_state_merkle_pruning_impl(
+    input: Vec<(Vec<TransactionToCommit>, LedgerInfoWithSignatures)>,
+) {
+    let tmp_dir = TempPath::new();
+    let db = AptosDB::open(
+        &tmp_dir,
+        false, /* is_read_only */
+        PrunerConfig {
+            ledger_pruner_config: LedgerPrunerConfig {
+                enable: true,
+                prune_window: 10,
+                batch_size: 1,
+                user_pruning_window_offset: 0,
+            },
+            state_merkle_pruner_config: StateMerklePrunerConfig {
+                enable: true,
+                prune_window: 5,
+                batch_size: 1,
+            },
+            epoch_ending_state_merkle_pruner_config: EpochEndingStateMerklePrunerConfig {
+                enable: true,
+                prune_window: 10,
+                batch_size: 1,
+            },
+        },
+        RocksdbConfigs::default(),
+        false, /* enable_indexer */
+        TARGET_SNAPSHOT_SIZE,
+        DEFAULT_MAX_NUM_NODES_PER_LRU_CACHE_SHARD,
+    )
+    .unwrap();
+
+    let state_key = StateKey::Raw(vec![]);
+    let mut in_memory_state = db
+        .state_store
+        .buffered_state()
+        .lock()
+        .current_state()
+        .clone();
+    let _ancester = in_memory_state.current.clone();
+    let mut next_ver: Version = 0;
+    let mut snapshot_versions = vec![];
+    for (txns_to_commit, ledger_info_with_sigs) in input.iter() {
+        update_in_memory_state(&mut in_memory_state, txns_to_commit.as_slice());
+        db.save_transactions(
+            txns_to_commit,
+            next_ver,                /* first_version */
+            next_ver.checked_sub(1), /* base_state_version */
+            Some(ledger_info_with_sigs),
+            true, /* sync_commit */
+            in_memory_state.clone(),
+        )
+        .unwrap();
+
+        next_ver += txns_to_commit.len() as u64;
+
+        let last_version = next_ver - 1;
+        let is_epoch_ending = ledger_info_with_sigs.ledger_info().ends_epoch();
+        snapshot_versions.push((last_version, is_epoch_ending));
+
+        let window_edge = last_version.saturating_sub(5);
+        if let Some((first_readable, _)) = snapshot_versions
+            .iter()
+            .find(|(version, _)| *version >= window_edge)
+        {
+            assert!(db
+                .get_state_value_by_version(&state_key, *first_readable)
+                .is_ok());
+        }
+
+        let window_edge = last_version.saturating_sub(10);
+        if let Some((first_readable, _)) = snapshot_versions
+            .iter()
+            .find(|(version, is_epoch_ending)| *is_epoch_ending && *version >= window_edge)
+        {
+            assert!(db
+                .get_state_value_by_version(&state_key, *first_readable)
+                .is_ok());
+        }
+    }
+    db.state_store.buffered_state().lock().sync_commit();
 }
 
 fn verify_snapshots(

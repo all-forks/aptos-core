@@ -25,10 +25,12 @@ use aptos_types::{
     transaction::{ExecutionStatus, TransactionInfo},
 };
 use storage_interface::{DbReader, ExecutedTrees, Order};
-use test_helper::{test_save_blocks_impl, test_sync_transactions_impl};
+use test_helper::{
+    test_save_blocks_impl, test_state_merkle_pruning_impl, test_sync_transactions_impl,
+};
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(10))]
+    #![proptest_config(ProptestConfig::with_cases(100))]
 
     #[test]
     fn test_save_blocks(input in arb_blocks_to_commit(), threshold in 10..20usize) {
@@ -38,6 +40,11 @@ proptest! {
     #[test]
     fn test_sync_transactions(input in arb_blocks_to_commit(), threshold in 10..20usize) {
         test_sync_transactions_impl(input, threshold);
+    }
+
+    #[test]
+    fn test_state_merkle_pruning(input in arb_blocks_to_commit()) {
+        test_state_merkle_pruning_impl(input)
     }
 }
 
