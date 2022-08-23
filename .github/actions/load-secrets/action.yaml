@@ -1,0 +1,45 @@
+name: Load Secrets from GCP Secrets Manager
+
+inputs:
+  set_env:
+    description: "expose the secrets also as environment variables (default: false)"
+    required: false
+    default: "false"
+outputs:
+  AWS_ACCOUNT_NUM:
+    value: ${{ steps.secrets.outputs.AWS_ACCOUNT_NUM }}
+  AWS_ACCESS_KEY_ID:
+    value: ${{ steps.secrets.outputs.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY:
+    value: ${{ steps.secrets.outputs.AWS_SECRET_ACCESS_KEY }}
+  PUSH_GATEWAY:
+    value: ${{ steps.secrets.outputs.PUSH_GATEWAY }}
+  PUSH_GATEWAY_USER: 
+    value: ${{ steps.secrets.outputs.PUSH_GATEWAY_USER }}
+  PUSH_GATEWAY_PASSWORD: 
+    value: ${{ steps.secrets.outputs.PUSH_GATEWAY_PASSWORD }}
+
+runs:
+  using: composite
+  steps:
+    - id: "secrets"
+      uses: "google-github-actions/get-secretmanager-secrets@v0"
+      with:
+        secrets: |-
+          AWS_ACCOUNT_NUM:aptos-ci/AWS_ACCOUNT_NUM
+          AWS_ACCESS_KEY_ID:aptos-ci/AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY:aptos-ci/AWS_SECRET_ACCESS_KEY
+          PUSH_GATEWAY:aptos-ci/PUSH_GATEWAY
+          PUSH_GATEWAY_USER:aptos-ci/PUSH_GATEWAY_USER
+          PUSH_GATEWAY_PASSWORD:aptos-ci/PUSH_GATEWAY_PASSWORD
+
+    - name: Expose secrets as environment variables
+      if: inputs.set_env == 'true'
+      shell: bash
+      run: |
+        echo "AWS_ACCOUNT_NUM=${{ steps.secrets.outputs.AWS_ACCOUNT_NUM }}" >> $GITHUB_ENV
+        echo "AWS_ACCESS_KEY_ID=${{ steps.secrets.outputs.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=${{ steps.secrets.outputs.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+        echo "PUSH_GATEWAY=${{ steps.secrets.outputs.PUSH_GATEWAY }}" >> $GITHUB_ENV
+        echo "PUSH_GATEWAY_USER=${{ steps.secrets.outputs.PUSH_GATEWAY_USER }}" >> $GITHUB_ENV
+        echo "PUSH_GATEWAY_PASSWORD=${{ steps.secrets.outputs.PUSH_GATEWAY_PASSWORD }}" >> $GITHUB_ENV
